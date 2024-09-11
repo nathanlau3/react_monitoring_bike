@@ -12,8 +12,7 @@ const Modal_account = ({ open, handleClose, modal, close }) => {
   else {
     const handleSubmit = (e) => {      
       e.preventDefault();
-      const fetch = async () => {        
-        const update = await updateAccount(modal.id, tempData);        
+      const fetch = async () => {
         close()
         Swal.fire({
           position: 'center',

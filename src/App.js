@@ -5,12 +5,15 @@ import Maps from "./components/maps/maps";
 import Dashboard from "./components/dashboard";
 import Login from "./components/login";
 import Account from "./components/account/account"
+import bicycle from "./components/bicycle/bicycle";
+import Bike_terminal from "./components/bike_terminal/bike_terminal";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Link
 } from "react-router-dom";
+import Bicycle from "./components/bicycle/bicycle";
 function App() {
   return (
     // <React.StrictMode>
@@ -23,16 +26,19 @@ function App() {
             <Dashboard/>
           </div>
         }/>
-        {/* <Route path="/dashboard" element={
+
+        <Route path="/terminal" element={
           <div>
-            <Dashboard/>
-          </div>
-        }/> */}
-        <Route path="/user" element={
-          <div>
-            <Account/>
+            <Bike_terminal/>
           </div>
         }/>
+
+        <Route path="/bicycle" element={
+          <div>
+            <Bicycle/>
+          </div>
+        }/>
+      
       </Routes>
     </Router>
       // </React.StrictMode>

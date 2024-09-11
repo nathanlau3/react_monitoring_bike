@@ -1,6 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
-import { getDatabase} from 'firebase/database'
+import { getDatabase } from 'firebase/database'
+import { getFirestore } from "firebase/firestore";
+// const { getFirestore, Timestamp, FieldValue, Filter } = require('firebase-admin/firestore');
 
 const firebaseConfig = {
   apiKey: "AIzaSyDoFRhXBcWg1zVO_5u36n0QUN8lgx8TDoA",
@@ -14,6 +16,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// export const auth = getAuth(app)
-// export const googleProvider = new GoogleAuthProvider();
+
 export const db = getDatabase(app)
+export const dbFirestore = getFirestore(app)
+

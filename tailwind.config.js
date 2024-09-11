@@ -4,11 +4,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        "utama": "#45496a",
-        "kedua": "#7d8bae",
-        "merah": "#e5857b",
-        "pink": "#f1b2b2",
-        "coklat": "#e8ccc7"
+        primary: "#0E1D54",
+        secondary: "#597AAF",
+        tertiary: "#A4B4CB",
+    
+        latar1: "#ECEDEF",
+        latar2: "#E8EAED",
+        latar3: "#FFFFFF",
+    
+        white: "#F3F4F8",
+        lightWhite: "#FAFAFC",
       }
     },
   },
