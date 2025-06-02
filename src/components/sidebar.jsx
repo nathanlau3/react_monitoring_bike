@@ -1,74 +1,132 @@
-import React, { useState } from "react";
-import {FaAngleDoubleLeft, FaBiking, FaWarehouse, FaMapMarkedAlt} from 'react-icons/fa'
+import React, { useState, useCallback, memo } from "react";
+import {
+  FaAngleDoubleLeft,
+  FaBiking,
+  FaWarehouse,
+  FaMapMarkedAlt,
+} from "react-icons/fa";
 import { IconContext } from "react-icons";
-import { Navigate, Link } from "react-router-dom";
-import {TbAlignBoxBottomCenterFilled} from 'react-icons/tb'
-import 'leaflet/dist/leaflet.css';
+import { Link, useLocation } from "react-router-dom";
+import "leaflet/dist/leaflet.css";
 
+// Constants
+const SIDEBAR_WIDTH = {
+  EXPANDED: "250px",
+  COLLAPSED: "100px",
+};
 
-const ArrayLink = [
+const NAVIGATION_ITEMS = [
   {
-    "url": "/",
-    "label": "Dashboard",
-    "icon": <FaMapMarkedAlt/>
+    id: "dashboard",
+    url: "/",
+    label: "Dashboard",
+    icon: FaMapMarkedAlt,
   },
   {
-    "url": "/terminal",
-    "label": "Terminal",
-    "icon": <FaWarehouse/>
+    id: "terminal",
+    url: "/terminal",
+    label: "Terminal",
+    icon: FaWarehouse,
   },
   {
-    "url": "/bicycle",
-    "label": "Bikes",
-    "icon": <FaBiking/>
-  }
-]
+    id: "bicycle",
+    url: "/bicycle",
+    label: "Bikes",
+    icon: FaBiking,
+  },
+];
 
+// Memoized Navigation Item Component
+const NavigationItem = memo(({ item, isOpen }) => {
+  const location = useLocation();
+  const isActive = location.pathname === item.url;
+
+  return (
+    <Link
+      to={item.url}
+      className={`flex items-center gap-4 px-5 py-3 cursor-pointer transition-colors duration-200
+        ${isActive ? "bg-gray-200" : "hover:bg-gray-100"}
+        ${!isOpen ? "justify-center" : ""}`}
+    >
+      <IconContext.Provider
+        value={{ size: "2em", className: isActive ? "text-blue-600" : "" }}
+      >
+        <item.icon />
+      </IconContext.Provider>
+      <span
+        className={`transition-opacity duration-200 ${!isOpen ? "hidden" : ""}`}
+      >
+        {item.label}
+      </span>
+    </Link>
+  );
+});
+
+NavigationItem.displayName = "NavigationItem";
+
+// Memoized Logo Component
+const Logo = memo(({ isOpen }) => (
+  <div className="container mx-auto p-3 h-20 border-b-2 border-slate-300">
+    <Link to="/" className="block h-full">
+      <h2 className="flex justify-center h-full text-2xl items-center font-bold transition-all duration-200">
+        {!isOpen ? "MB" : "MoBike"}
+      </h2>
+    </Link>
+  </div>
+));
+
+Logo.displayName = "Logo";
+
+// Main Sidebar Component
 const Sidebar = ({ children }) => {
-  const [open, setOpen] = useState(true);  
-  
+  const [isOpen, setIsOpen] = useState(true);
+
+  const toggleSidebar = useCallback(() => {
+    setIsOpen((prev) => !prev);
+  }, []);
+
   return (
     <div className="flex relative">
-      <div className={`flex bg-white ${open ? "w-[250px]" : "w-[100px]"} min-h-screen sticky top-0 z-50`}>
-        <div className="h-[100%] w-[100%]">      
-          <div className="container mx-auto p-3 h-20 border-b-2 border-slate-300">
-            <Link to="/">
-              <h2 className="flex justify-center h-[100%] text-2xl items-center font-bold">{!open ? "MB" : "MoBike"}</h2>
-            </Link>
-          </div>
-          <div className="flex-col w-[100%] h-[calc(100%-80px)]"            
-            >
-          {ArrayLink.map((x, i) => (
-              <Link 
-                key={i}
-                className={`flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-gray-300 ${!open ? "justify-center" : ""}`}
-                to={`${x.url}`}                        
-              >
-              <IconContext.Provider value={{ size: "2em" }}>
-                {x.icon}
-              </IconContext.Provider>
-              <span className={`${!open ? "hidden" : ""}`}>{x.label}</span>
-              </Link>                          
-            
-          ))}
-          </div>
-        </div>      
-        <button 
-            className="bg-white absolute rounded-md -right-3 top-1/2 -translate-y-1/2 z-30 p-2"
-            onClick={() => setOpen(!open)}
-          >
-          <IconContext.Provider value={{color: "black", size: "1em"}}>
-            {/* {open ? <FaAngleDoubleLeft /> : <FaAngleDoubleRight/>} */}
-            <FaAngleDoubleLeft className={`${!open && "rotate-180"}`}/>
+      <div
+        className={`flex bg-white transition-all duration-300 ease-in-out
+          ${
+            isOpen
+              ? `w-[${SIDEBAR_WIDTH.EXPANDED}]`
+              : `w-[${SIDEBAR_WIDTH.COLLAPSED}]`
+          }
+          min-h-screen sticky top-0 z-50 shadow-lg`}
+      >
+        <div className="h-full w-full">
+          <Logo isOpen={isOpen} />
+
+          <nav className="flex-col w-full h-[calc(100%-80px)]">
+            {NAVIGATION_ITEMS.map((item) => (
+              <NavigationItem key={item.id} item={item} isOpen={isOpen} />
+            ))}
+          </nav>
+        </div>
+
+        <button
+          className="bg-white absolute rounded-md -right-3 top-1/2 -translate-y-1/2 z-30 p-2
+            shadow-md hover:bg-gray-100 transition-colors duration-200"
+          onClick={toggleSidebar}
+          aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          <IconContext.Provider value={{ color: "black", size: "1em" }}>
+            <FaAngleDoubleLeft
+              className={`transition-transform duration-300 ${
+                !isOpen && "rotate-180"
+              }`}
+            />
           </IconContext.Provider>
         </button>
-        </div>
-        {/* maps */}
-        <div className="relative -mt-7 pt-7 text-2xl font-semibold flex-1 z-20">
-          {children}
-        </div>  
+      </div>
+
+      <main className="relative -mt-7 pt-7 text-2xl font-semibold flex-1 z-20">
+        {children}
+      </main>
     </div>
   );
 };
 
-export default Sidebar;
+export default memo(Sidebar);
