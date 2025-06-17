@@ -1,4 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
+import { fetchTerminals } from "./mapsThunks";
 
 const initialState = {
   locations: [],
@@ -6,8 +7,13 @@ const initialState = {
   openTrack: false,
   openTerminal: false,
   isConnected: false,
-  isLoading: false,
+  loading: false,
   error: null,
+  modal: {
+    open: false,
+    isCreate: false,
+    selectedData: null,
+  },
 };
 
 const mapsSlice = createSlice({
@@ -30,12 +36,13 @@ const mapsSlice = createSlice({
       state.isConnected = action.payload;
     },
     setLoading: (state, action) => {
-      state.isLoading = action.payload;
+      state.loading = action.payload;
     },
     setError: (state, action) => {
       state.error = action.payload;
     },
     updateLocation: (state, action) => {
+      console.log("action.payload", action.payload);
       const index = state.locations.findIndex(
         (loc) => loc.iteration === action.payload.iteration
       );
@@ -45,6 +52,32 @@ const mapsSlice = createSlice({
         state.locations.push(action.payload);
       }
     },
+    openModal: (state, action) => {
+      state.modal.open = true;
+      state.modal.isCreate = action.payload.isCreate || false;
+      state.modal.selectedData = action.payload.data || null;
+    },
+    closeModal: (state) => {
+      state.modal.open = false;
+      state.modal.isCreate = false;
+      state.modal.selectedData = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchTerminals.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchTerminals.fulfilled, (state, action) => {
+        state.loading = false;
+        state.terminals = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchTerminals.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || "Failed to fetch terminals";
+      });
   },
 });
 
@@ -57,6 +90,8 @@ export const {
   setLoading,
   setError,
   updateLocation,
+  openModal,
+  closeModal,
 } = mapsSlice.actions;
 
 export default mapsSlice.reducer;

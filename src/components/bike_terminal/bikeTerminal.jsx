@@ -9,6 +9,7 @@ import ErrorMessage from "../common/ErrorMessage";
 import { Card, Typography } from "@material-tailwind/react";
 import { FaPlus } from "react-icons/fa";
 import { fetchTerminals } from "../../redux/features/mapsThunks";
+import { openModal, closeModal } from "../../redux/features/mapsSlice";
 
 // Constants
 const TABLE_HEAD = ["No", "Location (Faculty)", "Action", ""];
@@ -19,17 +20,14 @@ const BUTTON_STYLES = {
   addButton: "w-auto h-[40px]",
 };
 
-const Bike_terminal = () => {
+const BikeTerminal = () => {
   // Redux state
   const dispatch = useDispatch();
-  const { terminals, loading, error } = useSelector((state) => state.maps);
+  const { terminals, loading, error, modal } = useSelector(
+    (state) => state.maps
+  );
 
   // Local state
-  const [modal, setModal] = useState({
-    open: false,
-    isCreate: false,
-    selectedData: null,
-  });
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   // Fetch terminals on component mount
@@ -40,22 +38,16 @@ const Bike_terminal = () => {
   }, [dispatch, terminals?.length]);
 
   // Modal handlers
-  const handleOpenModal = useCallback((isCreate = false, data = null) => {
-    console.log("Opening modal:", { isCreate, data });
-    setModal({
-      open: true,
-      isCreate,
-      selectedData: data,
-    });
-  }, []);
+  const handleOpenModal = useCallback(
+    (isCreate = false, data = null) => {
+      dispatch(openModal({ isCreate, data }));
+    },
+    [dispatch]
+  );
 
   const handleCloseModal = useCallback(() => {
-    setModal({
-      open: false,
-      isCreate: false,
-      selectedData: null,
-    });
-  }, []);
+    dispatch(closeModal());
+  }, [dispatch]);
 
   // Row expansion handler
   const handleToggleExpand = useCallback((terminalId) => {
@@ -201,4 +193,4 @@ const Bike_terminal = () => {
   );
 };
 
-export default React.memo(Bike_terminal);
+export default React.memo(BikeTerminal);
