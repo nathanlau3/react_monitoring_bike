@@ -7,6 +7,7 @@ import {
   FaBars,
   FaTimes,
   FaSignOutAlt,
+  FaClipboardList,
 } from "react-icons/fa";
 import { IconContext } from "react-icons";
 import { Link, useLocation } from "react-router-dom";
@@ -33,6 +34,12 @@ const NAVIGATION_ITEMS = [
     url: "/bicycle",
     label: "Bikes",
     icon: FaBiking,
+  },
+  {
+    id: "bike-order",
+    url: "/bike-order",
+    label: "Bike Order",
+    icon: FaClipboardList,
   },
 ];
 

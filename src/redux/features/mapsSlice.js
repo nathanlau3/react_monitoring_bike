@@ -1,11 +1,14 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchTerminals } from "./mapsThunks";
+import { fetchTerminals, fetchClusters } from "./mapsThunks";
 
 const initialState = {
   locations: [],
   terminals: [],
+  clusters: [],
+  selectedClusters: [],
   openTrack: false,
   openTerminal: false,
+  openCluster: false,
   isConnected: false,
   loading: false,
   error: null,
@@ -31,6 +34,27 @@ const mapsSlice = createSlice({
     },
     toggleTerminal: (state) => {
       state.openTerminal = !state.openTerminal;
+    },
+    toggleCluster: (state) => {
+      state.openCluster = !state.openCluster;
+    },
+    setClusters: (state, action) => {
+      state.clusters = action.payload;
+    },
+    setSelectedClusters: (state, action) => {
+      state.selectedClusters = action.payload;
+    },
+    toggleClusterSelection: (state, action) => {
+      const clusterId = action.payload;
+      const isSelected = state.selectedClusters.includes(clusterId);
+
+      if (isSelected) {
+        state.selectedClusters = state.selectedClusters.filter(
+          (id) => id !== clusterId
+        );
+      } else {
+        state.selectedClusters.push(clusterId);
+      }
     },
     setConnectionStatus: (state, action) => {
       state.isConnected = action.payload;
@@ -77,6 +101,19 @@ const mapsSlice = createSlice({
       .addCase(fetchTerminals.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message || "Failed to fetch terminals";
+      })
+      .addCase(fetchClusters.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchClusters.fulfilled, (state, action) => {
+        state.loading = false;
+        state.clusters = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchClusters.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || "Failed to fetch clusters";
       });
   },
 });
@@ -84,8 +121,12 @@ const mapsSlice = createSlice({
 export const {
   setLocations,
   setTerminals,
+  setClusters,
+  setSelectedClusters,
   toggleTrack,
   toggleTerminal,
+  toggleCluster,
+  toggleClusterSelection,
   setConnectionStatus,
   setLoading,
   setError,

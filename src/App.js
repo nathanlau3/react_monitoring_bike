@@ -9,6 +9,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import Bicycle from "./components/bicycle/bicycle";
+import BikeOrder from "./pages/BikeOrder";
 import Login from "./components/login";
 import { Provider, useSelector } from "react-redux";
 import { store } from "./redux/store";
@@ -64,6 +65,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <Bicycle />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/bike-order"
+            element={
+              <ProtectedRoute>
+                <BikeOrder />
               </ProtectedRoute>
             }
           />

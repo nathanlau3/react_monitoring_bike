@@ -6,7 +6,7 @@ export const loginUser = createAsyncThunk(
   async (credentials, { rejectWithValue }) => {
     try {
       const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
+        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
       console.log("Using API URL:", apiUrl);
 
       const response = await fetch(`${apiUrl}/v1/auth/login-mobile`, {
@@ -62,7 +62,7 @@ export const logoutUser = createAsyncThunk(
       const token = localStorage.getItem("token");
       if (token) {
         const apiUrl =
-          process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
+          process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
         await fetch(`${apiUrl}/auth/logout`, {
           method: "POST",
           headers: {
