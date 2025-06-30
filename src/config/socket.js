@@ -14,9 +14,28 @@ export const socket = io(URL, {
   timeout: 20000,
   // Enable debug logs in development
   debug: process.env.NODE_ENV === "development",
-  // Transport options
+  // Transport options - try websocket first, fallback to polling
   transports: ["websocket", "polling"],
+  // Force new connection
+  forceNew: true,
+  // Additional options for better compatibility
+  upgrade: true,
+  rememberUpgrade: true,
 });
+
+// Function to connect socket
+export const connectSocket = () => {
+  if (!socket.connected) {
+    socket.connect();
+  }
+};
+
+// Function to disconnect socket
+export const disconnectSocket = () => {
+  if (socket.connected) {
+    socket.disconnect();
+  }
+};
 
 // Debug logging for development
 if (process.env.NODE_ENV === "development") {

@@ -1,17 +1,23 @@
 import { useEffect, useCallback, useState } from "react";
-import { MapContainer, TileLayer } from "react-leaflet";
+import { MapContainer, TileLayer, Circle, Marker, Popup } from "react-leaflet";
 import { ZoomControl } from "react-leaflet/ZoomControl";
 import PinMarker from "./pinMarker";
-import { socket } from "../../config/socket";
+import { divIcon } from "leaflet";
+import socketService from "../../services/socketService";
+import useSocket from "../../hooks/useSocket";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
   toggleTrack,
   toggleTerminal,
-  setConnectionStatus,
+  toggleCluster,
   updateLocation,
+  setClusters,
+  setSelectedClusters,
+  toggleClusterSelection,
 } from "../../redux/features/mapsSlice";
-import { fetchTerminals } from "../../redux/features/mapsThunks";
+import { logout } from "../../redux/features/authSlice";
+import { fetchTerminals, fetchClusters } from "../../redux/features/mapsThunks";
 
 // Constants
 const MAP_BUTTONS = [
@@ -27,26 +33,43 @@ const MAP_BUTTONS = [
     icon: "🏪",
     description: "Show terminal locations",
   },
+  {
+    id: "cluster",
+    label: "Cluster",
+    icon: "🎯",
+    description: "Show cluster area",
+  },
 ];
 
 const DEFAULT_CENTER = [-7.77561471227957, 110.37319551913158];
 const DEFAULT_ZOOM = 15;
 
+// Cluster configuration
+const CLUSTER_CENTER = [-7.767892866288708, 110.37241916652384];
+const CLUSTER_RADIUS = 5000; // 5km in meters
+
 const Maps = ({ sidebarWidth = 256 }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [retryCount, setRetryCount] = useState(0);
+  const [showClusterModal, setShowClusterModal] = useState(false);
+
+  // Use socket hook for connection status
+  const { isConnected, reconnect } = useSocket();
+
   const {
     locations,
     terminals,
+    clusters,
+    selectedClusters,
     openTrack,
     openTerminal,
-    isConnected,
+    openCluster,
     isLoading,
     error,
   } = useSelector((state) => state.maps);
 
-  // Socket event handlers - Define handleTrackingUpdate first to avoid initialization error
+  // Socket callbacks
   const handleTrackingUpdate = useCallback(
     (data) => {
       // console.log("Received tracking update:", data);
@@ -57,20 +80,36 @@ const Maps = ({ sidebarWidth = 256 }) => {
 
   const handleConnect = useCallback(() => {
     console.log("Socket connected successfully");
-    dispatch(setConnectionStatus(true));
     setRetryCount(0);
-    socket.on("test", handleTrackingUpdate);
-  }, [dispatch, handleTrackingUpdate]);
+  }, []);
 
   const handleDisconnect = useCallback(() => {
     console.log("Socket disconnected");
-    dispatch(setConnectionStatus(false));
-    socket.off("test", handleTrackingUpdate);
-  }, [dispatch, handleTrackingUpdate]);
+  }, []);
+
+  // Handle unauthorized responses
+  const handleUnauthorized = useCallback(() => {
+    console.log(
+      "Unauthorized access - clearing auth state and redirecting to login"
+    );
+
+    // Disconnect socket
+    socketService.disconnect();
+
+    // Clear Redux auth state
+    dispatch(logout());
+
+    // Clear localStorage (logout action should handle this, but double-check)
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    // Navigate to login
+    navigate("/login", { replace: true });
+  }, [navigate, dispatch]);
 
   // Button click handler
   const handleButtonClick = useCallback(
-    (buttonId) => {
+    async (buttonId) => {
       if (isLoading) return;
 
       switch (buttonId) {
@@ -80,18 +119,31 @@ const Maps = ({ sidebarWidth = 256 }) => {
         case "terminal":
           dispatch(toggleTerminal());
           break;
+        case "cluster":
+          dispatch(toggleCluster());
+          // Fetch clusters if not already loaded
+          if (!clusters.length) {
+            try {
+              const result = await dispatch(fetchClusters());
+              if (fetchClusters.rejected.match(result)) {
+                if (
+                  result.payload?.status === 401 &&
+                  result.payload?.needsRedirect
+                ) {
+                  handleUnauthorized();
+                }
+              }
+            } catch (error) {
+              console.error("Error fetching clusters:", error);
+            }
+          }
+          break;
         default:
           break;
       }
     },
-    [dispatch, isLoading]
+    [dispatch, isLoading, clusters.length, handleUnauthorized]
   );
-
-  // Handle unauthorized responses
-  const handleUnauthorized = useCallback(() => {
-    console.log("Unauthorized access - redirecting to login");
-    navigate("/login", { replace: true });
-  }, [navigate]);
 
   // Modified retry handler
   const handleRetry = useCallback(async () => {
@@ -114,38 +166,27 @@ const Maps = ({ sidebarWidth = 256 }) => {
   useEffect(() => {
     console.log("Setting up socket connection");
 
-    // Set up event listeners first
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-
-    // Handle connection errors
-    socket.on("connect_error", (error) => {
-      console.error("Socket connection error:", error);
-      dispatch(setConnectionStatus(false));
+    // Initialize socket service with callbacks
+    socketService.initialize({
+      onConnect: handleConnect,
+      onDisconnect: handleDisconnect,
+      onTrackingUpdate: handleTrackingUpdate,
+      onUnauthorized: handleUnauthorized,
+      onError: (error) => {
+        console.error("Socket error:", error);
+      },
     });
-
-    // Connect the socket
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    // If already connected, trigger handleConnect manually
-    if (socket.connected) {
-      handleConnect();
-    }
 
     return () => {
       console.log("Cleaning up socket connection");
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
-      socket.off("connect_error");
-      socket.off("test", handleTrackingUpdate);
-      // Only disconnect if we're the last component using the socket
-      if (socket.connected) {
-        socket.disconnect();
-      }
+      socketService.disconnect();
     };
-  }, [handleConnect, handleDisconnect, handleTrackingUpdate, dispatch]);
+  }, [
+    handleConnect,
+    handleDisconnect,
+    handleTrackingUpdate,
+    handleUnauthorized,
+  ]);
 
   // Initial data fetch with auth handling
   useEffect(() => {
@@ -200,7 +241,8 @@ const Maps = ({ sidebarWidth = 256 }) => {
         {MAP_BUTTONS.map(({ id, label, icon, description }) => {
           const isActive =
             (id === "bicycle" && openTrack) ||
-            (id === "terminal" && openTerminal);
+            (id === "terminal" && openTerminal) ||
+            (id === "cluster" && openCluster);
 
           return (
             <button
@@ -263,6 +305,21 @@ const Maps = ({ sidebarWidth = 256 }) => {
           <div className="flex items-center gap-2 px-3 py-2 bg-purple-50/90 text-purple-700 rounded-lg text-sm font-medium backdrop-blur-md border border-purple-200">
             <span>🏪</span>
             <span>{terminals.length} Terminals</span>
+          </div>
+        )}
+        {openCluster && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50/90 text-blue-700 rounded-lg text-sm font-medium backdrop-blur-md border border-blue-200">
+            <span>🎯</span>
+            <span>
+              {selectedClusters.length} Cluster
+              {selectedClusters.length !== 1 ? "s" : ""}
+            </span>
+            <button
+              onClick={() => setShowClusterModal(true)}
+              className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+            >
+              Select
+            </button>
           </div>
         )}
       </div>
@@ -343,6 +400,126 @@ const Maps = ({ sidebarWidth = 256 }) => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        {/* Cluster Areas */}
+        {openCluster &&
+          clusters
+            .filter((cluster) => selectedClusters.includes(cluster.id))
+            .map((cluster, index) => {
+              const colors = [
+                "#3b82f6", // Blue
+                "#10b981", // Green
+                "#f59e0b", // Yellow
+                "#ef4444", // Red
+                "#8b5cf6", // Purple
+                "#06b6d4", // Cyan
+                "#f97316", // Orange
+                "#84cc16", // Lime
+              ];
+              const color = colors[index % colors.length];
+
+              return (
+                <div key={`cluster-${cluster.id}`}>
+                  {/* Cluster Circle */}
+                  <Circle
+                    center={[cluster.latitude, cluster.longitude]}
+                    radius={cluster.radius}
+                    pathOptions={{
+                      color: color,
+                      fillColor: color,
+                      fillOpacity: 0.1,
+                      weight: 2,
+                      dashArray: "10, 5",
+                    }}
+                  />
+
+                  {/* Cluster Center Point */}
+                  <Marker
+                    position={[cluster.latitude, cluster.longitude]}
+                    icon={divIcon({
+                      html: `
+                        <div style="
+                          width: 20px;
+                          height: 20px;
+                          background: ${color};
+                          border: 3px solid white;
+                          border-radius: 50%;
+                          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                          position: relative;
+                        ">
+                          <div style="
+                            position: absolute;
+                            top: -8px;
+                            left: -8px;
+                            width: 36px;
+                            height: 36px;
+                            border: 2px solid ${color};
+                            border-radius: 50%;
+                            opacity: 0.5;
+                            animation: pulse-${cluster.id} 2s infinite;
+                          "></div>
+                        </div>
+                        <style>
+                          @keyframes pulse-${cluster.id} {
+                            0% { transform: scale(1); opacity: 0.5; }
+                            50% { transform: scale(1.2); opacity: 0.3; }
+                            100% { transform: scale(1); opacity: 0.5; }
+                          }
+                        </style>
+                      `,
+                      className: `cluster-center-marker-${cluster.id}`,
+                      iconSize: [20, 20],
+                      iconAnchor: [10, 10],
+                    })}
+                  >
+                    <Popup>
+                      <div
+                        style={{
+                          padding: "8px",
+                          fontFamily: "Arial, sans-serif",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "16px",
+                            fontWeight: "bold",
+                            color: color,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          🎯 {cluster.name}
+                        </div>
+                        {cluster.description && (
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#6b7280",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {cluster.description}
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#6b7280",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          📍 {cluster.latitude?.toFixed(6)},{" "}
+                          {cluster.longitude?.toFixed(6)}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                          📏 Radius: {(cluster.radius / 1000).toFixed(1)}km
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                </div>
+              );
+            })}
+
         {/* Bike Markers */}
         {openTrack &&
           locations.length > 0 &&
@@ -376,7 +553,7 @@ const Maps = ({ sidebarWidth = 256 }) => {
       {isLoading && <LoadingDisplay />}
 
       {/* Welcome Message for First Time Users */}
-      {!openTrack && !openTerminal && !isLoading && !error && (
+      {!openTrack && !openTerminal && !openCluster && !isLoading && !error && (
         <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-50">
           <div className="px-6 py-4 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 text-center max-w-sm">
             <div className="text-2xl mb-2">👋</div>
@@ -384,6 +561,144 @@ const Maps = ({ sidebarWidth = 256 }) => {
             <p className="text-gray-500 text-sm">
               Select bicycles or terminals to get started
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Cluster Selection Modal */}
+      {showClusterModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Select Clusters
+                </h2>
+                <button
+                  onClick={() => setShowClusterModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                >
+                  <span className="text-gray-500 text-xl">×</span>
+                </button>
+              </div>
+              <p className="text-gray-600 text-sm mt-2">
+                Choose which cluster areas to display on the map
+              </p>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-96 overflow-y-auto">
+              {clusters.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-500 text-lg mb-2">
+                    No clusters available
+                  </div>
+                  <div className="text-gray-400 text-sm">
+                    Please check your connection and try again
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {clusters.map((cluster, index) => {
+                    const colors = [
+                      "#3b82f6",
+                      "#10b981",
+                      "#f59e0b",
+                      "#ef4444",
+                      "#8b5cf6",
+                      "#06b6d4",
+                      "#f97316",
+                      "#84cc16",
+                    ];
+                    const color = colors[index % colors.length];
+                    const isSelected = selectedClusters.includes(cluster.id);
+
+                    return (
+                      <div
+                        key={cluster.id}
+                        className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                        onClick={() =>
+                          dispatch(toggleClusterSelection(cluster.id))
+                        }
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Color indicator */}
+                          <div
+                            className="w-4 h-4 rounded-full mt-1 flex-shrink-0"
+                            style={{ backgroundColor: color }}
+                          />
+
+                          {/* Cluster info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium text-gray-900 truncate">
+                                {cluster.name}
+                              </h3>
+                              {isSelected && (
+                                <span className="text-blue-600 text-sm">✓</span>
+                              )}
+                            </div>
+
+                            {cluster.description && (
+                              <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                                {cluster.description}
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                              <span>
+                                📏 {(cluster.radius / 1000).toFixed(1)}km
+                              </span>
+                              <span>
+                                📍 {cluster.latitude?.toFixed(4)},{" "}
+                                {cluster.longitude?.toFixed(4)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">
+                  {selectedClusters.length} of {clusters.length} clusters
+                  selected
+                </span>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => dispatch(setSelectedClusters([]))}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch(setSelectedClusters(clusters.map((c) => c.id)))
+                    }
+                    className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setShowClusterModal(false)}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

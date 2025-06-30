@@ -66,14 +66,20 @@ const mapsSlice = createSlice({
       state.error = action.payload;
     },
     updateLocation: (state, action) => {
-      console.log("action.payload", action.payload);
+      const newLocation = action.payload;
       const index = state.locations.findIndex(
-        (loc) => loc.iteration === action.payload.iteration
+        (loc) => loc.iteration === newLocation.iteration
       );
+
       if (index !== -1) {
-        state.locations[index] = action.payload;
+        // Create a new array to ensure React detects the change
+        state.locations = [
+          ...state.locations.slice(0, index),
+          newLocation,
+          ...state.locations.slice(index + 1),
+        ];
       } else {
-        state.locations.push(action.payload);
+        state.locations.push(newLocation);
       }
     },
     openModal: (state, action) => {

@@ -1,42 +1,143 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import bikeIcon from "../../assets/pin.png";
 import terminalIcon from "../../assets/terminal-point.png";
 import { Icon, divIcon } from "leaflet";
 
 const PinMarker = ({ latlng, type }) => {
+  // Debug logging to track color changes
+  useEffect(() => {
+    if (latlng && type === "bike") {
+      console.log("🎨 [PIN MARKER] Color update:", {
+        order_id: latlng.order_id,
+        tracking_color: latlng.tracking_color,
+        iteration: latlng.iteration,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [latlng?.tracking_color, latlng?.order_id, latlng?.iteration, type]);
+
+  // Memoize bike icon creation to update when tracking_color changes
+  const customBikeIcon = useMemo(() => {
+    if (type !== "bike" || !latlng) return null;
+
+    console.log(
+      "🔄 [PIN MARKER] Regenerating bike icon with color:",
+      latlng.tracking_color,
+      "for order:",
+      latlng.order_id
+    );
+
+    return divIcon({
+      html: `
+        <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-15px, -30px);">
+          <img src="${bikeIcon}" style="width: 30px; height: 30px;" />
+          <div style="
+            background: ${latlng.tracking_color || "rgba(37, 99, 235, 0.9)"};
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            margin-top: 2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+          ">
+            to: ${latlng.terminal_to || latlng.termina_to || "Unknown Terminal"}
+          </div>
+        </div>
+      `,
+      className: "custom-bike-marker",
+      iconSize: [60, 50],
+      iconAnchor: [30, 40],
+    });
+  }, [
+    latlng?.tracking_color,
+    latlng?.terminal_to,
+    latlng?.termina_to,
+    latlng?.order_id,
+    type,
+  ]);
+
+  // Memoize terminal icon creation to update when tracking_color changes
+  const customTerminalIcon = useMemo(() => {
+    if (type !== "terminal" || !latlng) return null;
+
+    return divIcon({
+      html: `
+        <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-25px, -40px);">
+          <img src="${terminalIcon}" style="width: 50px; height: 80px;" />
+          <div style="
+            background: ${latlng.tracking_color || "rgba(124, 58, 237, 0.9)"};
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            margin-top: 2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+          ">
+            ${latlng.name || "Terminal"}
+          </div>
+        </div>
+      `,
+      className: "custom-terminal-marker",
+      iconSize: [80, 100],
+      iconAnchor: [40, 80],
+    });
+  }, [latlng?.tracking_color, latlng?.name, type]);
+
+  // Memoize default icon creation to update when tracking_color changes
+  const customDefaultIcon = useMemo(() => {
+    if (type === "bike" || type === "terminal" || !latlng) return null;
+
+    return divIcon({
+      html: `
+        <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-15px, -30px);">
+          <img src="${terminalIcon}" style="width: 30px; height: 30px;" />
+          <div style="
+            background: ${latlng.tracking_color || "rgba(55, 65, 81, 0.9)"};
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            margin-top: 2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+          ">
+            ${
+              latlng.fullname ||
+              latlng.terminal_to ||
+              latlng.termina_to ||
+              "Location"
+            }
+          </div>
+        </div>
+      `,
+      className: "custom-default-marker",
+      iconSize: [60, 50],
+      iconAnchor: [30, 40],
+    });
+  }, [
+    latlng?.tracking_color,
+    latlng?.fullname,
+    latlng?.terminal_to,
+    latlng?.termina_to,
+    type,
+  ]);
+
   if (latlng !== undefined) {
     if (type === "bike") {
-      // Create custom marker with text label
-      const customBikeIcon = divIcon({
-        html: `
-          <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-15px, -30px);">
-            <img src="${bikeIcon}" style="width: 30px; height: 30px;" />
-            <div style="
-              background: rgba(37, 99, 235, 0.9);
-              color: white;
-              padding: 2px 8px;
-              border-radius: 12px;
-              font-size: 11px;
-              font-weight: bold;
-              white-space: nowrap;
-              margin-top: 2px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-              border: 1px solid rgba(255,255,255,0.3);
-            ">
-              to: ${
-                latlng.terminal_to || latlng.termina_to || "Unknown Terminal"
-              }
-            </div>
-          </div>
-        `,
-        className: "custom-bike-marker",
-        iconSize: [60, 50],
-        iconAnchor: [30, 40],
-      });
-
       return (
         <Marker
+          key={`bike-${latlng.order_id || latlng.iteration || "default"}-${
+            latlng.tracking_color || "blue"
+          }-${latlng.iteration}`}
           position={[`${latlng.latitude}`, `${latlng.longitude}`]}
           icon={customBikeIcon}
         >
@@ -46,7 +147,7 @@ const PinMarker = ({ latlng, type }) => {
                 style={{
                   fontSize: "16px",
                   fontWeight: "bold",
-                  color: "#2563eb",
+                  color: latlng.tracking_color || "#2563eb",
                   marginBottom: "8px",
                   display: "flex",
                   alignItems: "center",
@@ -74,6 +175,17 @@ const PinMarker = ({ latlng, type }) => {
                 </div>
               )}
 
+              {latlng.tracking_color && (
+                <div style={{ marginBottom: "6px" }}>
+                  <strong style={{ color: "#374151" }}>Color:</strong>
+                  <span
+                    style={{ marginLeft: "8px", color: latlng.tracking_color }}
+                  >
+                    {latlng.tracking_color}
+                  </span>
+                </div>
+              )}
+
               <div
                 style={{
                   fontSize: "12px",
@@ -83,46 +195,21 @@ const PinMarker = ({ latlng, type }) => {
                   borderTop: "1px solid #e5e7eb",
                 }}
               >
-                📍 {latlng.latitude?.toFixed(6)}, {latlng.longitude?.toFixed(6)}
+                📍 {Number(latlng.latitude)?.toFixed(6)},{" "}
+                {Number(latlng.longitude)?.toFixed(6)}
               </div>
             </div>
           </Popup>
         </Marker>
       );
     } else if (type === "terminal") {
-      // Create custom marker with text label for terminals
-      const customTerminalIcon = divIcon({
-        html: `
-          <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-25px, -40px);">
-            <img src="${terminalIcon}" style="width: 50px; height: 80px;" />
-            <div style="
-              background: rgba(124, 58, 237, 0.9);
-              color: white;
-              padding: 2px 8px;
-              border-radius: 12px;
-              font-size: 11px;
-              font-weight: bold;
-              white-space: nowrap;
-              margin-top: 2px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-              border: 1px solid rgba(255,255,255,0.3);
-            ">
-              ${
-                latlng.fullname ||
-                latlng.terminal_to ||
-                latlng.termina_to ||
-                "Terminal"
-              }
-            </div>
-          </div>
-        `,
-        className: "custom-terminal-marker",
-        iconSize: [80, 100],
-        iconAnchor: [40, 80],
-      });
+      console.log(latlng);
 
       return (
         <Marker
+          key={`terminal-${latlng.id || latlng.iteration || "default"}-${
+            latlng.tracking_color || "purple"
+          }`}
           position={[`${latlng.latitude}`, `${latlng.longitude}`]}
           icon={customTerminalIcon}
         >
@@ -169,46 +256,19 @@ const PinMarker = ({ latlng, type }) => {
                   borderTop: "1px solid #e5e7eb",
                 }}
               >
-                📍 {latlng.latitude?.toFixed(6)}, {latlng.longitude?.toFixed(6)}
+                📍 {Number(latlng.latitude)?.toFixed(6)},{" "}
+                {Number(latlng.longitude)?.toFixed(6)}
               </div>
             </div>
           </Popup>
         </Marker>
       );
     } else {
-      // Default marker with text label
-      const customDefaultIcon = divIcon({
-        html: `
-          <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-15px, -30px);">
-            <img src="${terminalIcon}" style="width: 30px; height: 30px;" />
-            <div style="
-              background: rgba(55, 65, 81, 0.9);
-              color: white;
-              padding: 2px 8px;
-              border-radius: 12px;
-              font-size: 11px;
-              font-weight: bold;
-              white-space: nowrap;
-              margin-top: 2px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-              border: 1px solid rgba(255,255,255,0.3);
-            ">
-              ${
-                latlng.fullname ||
-                latlng.terminal_to ||
-                latlng.termina_to ||
-                "Location"
-              }
-            </div>
-          </div>
-        `,
-        className: "custom-default-marker",
-        iconSize: [60, 50],
-        iconAnchor: [30, 40],
-      });
-
       return (
         <Marker
+          key={`default-${latlng.id || latlng.iteration || "default"}-${
+            latlng.tracking_color || "gray"
+          }`}
           position={[`${latlng.latitude}`, `${latlng.longitude}`]}
           icon={customDefaultIcon}
         >
@@ -255,7 +315,8 @@ const PinMarker = ({ latlng, type }) => {
                   borderTop: "1px solid #e5e7eb",
                 }}
               >
-                📍 {latlng.latitude?.toFixed(6)}, {latlng.longitude?.toFixed(6)}
+                📍 {Number(latlng.latitude)?.toFixed(6)},{" "}
+                {Number(latlng.longitude)?.toFixed(6)}
               </div>
             </div>
           </Popup>
