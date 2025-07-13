@@ -100,6 +100,7 @@ const BikeTerminalModal = ({ open, onClose, data, isCreate, onSuccess }) => {
     name: "",
     latitude: null,
     longitude: null,
+    radius: null,
   });
 
   // Initialize form data
@@ -109,12 +110,14 @@ const BikeTerminalModal = ({ open, onClose, data, isCreate, onSuccess }) => {
         name: data.name || "",
         latitude: data.latitude || null,
         longitude: data.longitude || null,
+        radius: data.radius || null,
       });
     } else if (isCreate) {
       setFormData({
         name: "",
         latitude: null,
         longitude: null,
+        radius: null,
       });
     }
   }, [data, isCreate, open]);
@@ -142,6 +145,12 @@ const BikeTerminalModal = ({ open, onClose, data, isCreate, onSuccess }) => {
       Math.abs(formData.longitude) > 180
     ) {
       newErrors.longitude = "Invalid longitude value";
+    }
+
+    if (!formData.radius) {
+      newErrors.radius = "Radius is required";
+    } else if (isNaN(formData.radius) || formData.radius < 0) {
+      newErrors.radius = "Invalid radius value";
     }
 
     setErrors(newErrors);
@@ -335,6 +344,14 @@ const BikeTerminalModal = ({ open, onClose, data, isCreate, onSuccess }) => {
                   onChange={handleChange}
                   required
                   error={errors.longitude}
+                />
+
+                <FormInput
+                  label="Radius"
+                  name="radius"
+                  type="number"
+                  value={formData.radius}
+                  onChange={handleChange}
                 />
 
                 {/* Form Actions */}

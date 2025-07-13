@@ -108,7 +108,7 @@ const BikeTerminal = () => {
 
   return (
     <Sidebar>
-      <div className="container p-5 w-full">
+      <div className="container mx-auto p-5">
         {/* Header Section */}
         <header className="flex flex-row justify-between items-center mb-6">
           <h1 className="text-2xl font-semibold text-gray-800">
