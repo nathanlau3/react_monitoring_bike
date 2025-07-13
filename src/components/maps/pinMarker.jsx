@@ -36,33 +36,67 @@ if (typeof document !== "undefined") {
 }
 
 const PinMarker = ({ latlng, type }) => {
-  // Debug logging to track color changes
+  // Debug logging to track color and status changes
   useEffect(() => {
     if (latlng && type === "bike") {
-      console.log("🎨 [PIN MARKER] Color update:", {
+      console.log("🎨 [PIN MARKER] Bike update:", {
         order_id: latlng.order_id,
         tracking_color: latlng.tracking_color,
+        status_active: latlng.status_active,
         iteration: latlng.iteration,
         timestamp: new Date().toISOString(),
       });
     }
-  }, [latlng?.tracking_color, latlng?.order_id, latlng?.iteration, type]);
+  }, [
+    latlng?.tracking_color,
+    latlng?.status_active,
+    latlng?.order_id,
+    latlng?.iteration,
+    type,
+  ]);
 
   // Memoize bike icon creation to update when tracking_color changes
   const customBikeIcon = useMemo(() => {
     if (type !== "bike" || !latlng) return null;
 
-    console.log(
-      "🔄 [PIN MARKER] Regenerating bike icon with color:",
-      latlng.tracking_color,
-      "for order:",
-      latlng.order_id
-    );
+    // Determine bike icon color based on status_active
+    const isActive = latlng.status_active === true;
+    const bikeIconFilter = isActive
+      ? "brightness(0) saturate(100%) invert(27%) sepia(51%) saturate(2878%) hue-rotate(346deg) brightness(104%) contrast(97%)" // Blue filter
+      : "brightness(0) saturate(100%) invert(0%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(0%) contrast(100%)"; // Black filter
+
+    const statusColor = isActive ? "#2563eb" : "#374151"; // Blue for active, gray for inactive
+    const statusText = isActive ? "ACTIVE" : "INACTIVE";
+
+    console.log("🔄 [PIN MARKER] Regenerating bike icon:", {
+      order_id: latlng.order_id,
+      tracking_color: latlng.tracking_color,
+      status_active: latlng.status_active,
+      icon_color: isActive ? "blue" : "black",
+    });
 
     return divIcon({
       html: `
         <div style="display: flex; flex-direction: column; align-items: center;">
-          <img src="${bikeIcon}" style="width: 30px; height: 30px;" />
+          <div style="position: relative;">
+            <img src="${bikeIcon}" style="
+              width: 30px; 
+              height: 30px; 
+              filter: ${bikeIconFilter};
+              transition: filter 0.3s ease;
+            " />
+            <div style="
+              position: absolute;
+              top: -4px;
+              right: -4px;
+              width: 8px;
+              height: 8px;
+              background: ${isActive ? "#10b981" : "#ef4444"};
+              border: 2px solid white;
+              border-radius: 50%;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            "></div>
+          </div>
           <div style="
             background: ${latlng.tracking_color || "rgba(37, 99, 235, 0.9)"};
             color: white;
@@ -77,17 +111,30 @@ const PinMarker = ({ latlng, type }) => {
           ">
             to: ${latlng.terminal_to || latlng.termina_to || "Unknown Terminal"}
           </div>
+          <div style="
+            background: ${statusColor};
+            color: white;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 9px;
+            font-weight: bold;
+            margin-top: 2px;
+            opacity: 0.9;
+          ">
+            ${statusText}
+          </div>
         </div>
       `,
       className: "custom-bike-marker",
-      iconSize: [80, 60],
-      iconAnchor: [40, 55], // Point to the bottom center of the bike icon
+      iconSize: [80, 80],
+      iconAnchor: [40, 75], // Adjusted for the additional status label
     });
   }, [
     latlng?.tracking_color,
     latlng?.terminal_to,
     latlng?.termina_to,
     latlng?.order_id,
+    latlng?.status_active,
     type,
   ]);
 
@@ -216,6 +263,20 @@ const PinMarker = ({ latlng, type }) => {
                   </span>
                 </div>
               )}
+
+              {/* Status Information */}
+              <div style={{ marginBottom: "6px" }}>
+                <strong style={{ color: "#374151" }}>Status:</strong>
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    color: latlng.status_active ? "#10b981" : "#ef4444",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {latlng.status_active ? "🟢 ACTIVE" : "🔴 INACTIVE"}
+                </span>
+              </div>
 
               <div
                 style={{
