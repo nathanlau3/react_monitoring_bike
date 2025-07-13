@@ -1,51 +1,14 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { logout } from "./authSlice";
-import axios from "axios";
 import Swal from "sweetalert2";
+import { apiGet, apiPost, apiPut } from "../../utils/apiClient";
 
 // Async thunk for fetching terminals
 export const fetchTerminals = createAsyncThunk(
   "bikeOrder/fetchTerminals",
-  async (_, { dispatch, getState, rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-      const state = getState();
-
-      // Try to get token from Redux state, fallback to localStorage
-      let token = null;
-      if (state && state.auth && state.auth.token) {
-        token = state.auth.token;
-        console.log("Using token from Redux state");
-      } else {
-        token = localStorage.getItem("token");
-        console.log("Using token from localStorage");
-      }
-
-      console.log("apiUrl", apiUrl);
-
-      const response = await fetch(`${apiUrl}/v1/bike-terminal`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token && { Authorization: token }),
-        },
-      });
-
-      if (!response.ok) {
-        // Handle unauthorized response
-        if (response.status === 401) {
-          dispatch(logout());
-          return rejectWithValue({
-            status: 401,
-            message: "Unauthorized - Please login again",
-            needsRedirect: true,
-          });
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const responseData = await response.json();
+      const responseData = await apiGet("/v1/bike-terminal");
 
       if (responseData.isSuccess && responseData.data) {
         return responseData.data;
@@ -55,11 +18,10 @@ export const fetchTerminals = createAsyncThunk(
         );
       }
     } catch (error) {
-      console.log("error", error);
-      const errorMessage = error.message || "Failed to fetch terminals";
+      console.error("Error fetching terminals:", error.message);
       return rejectWithValue({
-        status: error.status || 500,
-        message: errorMessage,
+        status: error.statusCode || 500,
+        message: error.message || "Failed to fetch terminals",
         needsRedirect: false,
       });
     }
@@ -69,52 +31,15 @@ export const fetchTerminals = createAsyncThunk(
 // Async thunk for fetching bike orders
 export const fetchBikeOrders = createAsyncThunk(
   "bikeOrder/fetchBikeOrders",
-  async (terminal_from_id, { dispatch, getState, rejectWithValue }) => {
+  async (terminal_from_id, { rejectWithValue }) => {
     try {
-      const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-      const state = getState();
-
-      // Try to get token from Redux state, fallback to localStorage
-      let token = null;
-      if (state && state.auth && state.auth.token) {
-        token = state.auth.token;
-        console.log("Using token from Redux state");
-      } else {
-        token = localStorage.getItem("token");
-        console.log("Using token from localStorage");
-      }
-
-      console.log("apiUrl", apiUrl);
-
       // Build URL with terminal_from_id parameter
-      const url = new URL(`${apiUrl}/v1/order/web`);
+      let url = "/v1/order/web";
       if (terminal_from_id) {
-        url.searchParams.append("terminal_from_id", terminal_from_id);
+        url += `?terminal_from_id=${terminal_from_id}`;
       }
 
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token && { Authorization: token }),
-        },
-      });
-
-      if (!response.ok) {
-        // Handle unauthorized response
-        if (response.status === 401) {
-          dispatch(logout());
-          return rejectWithValue({
-            status: 401,
-            message: "Unauthorized - Please login again",
-            needsRedirect: true,
-          });
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const responseData = await response.json();
+      const responseData = await apiGet(url);
 
       if (responseData.isSuccess && responseData.data) {
         return responseData.data;
@@ -124,11 +49,10 @@ export const fetchBikeOrders = createAsyncThunk(
         );
       }
     } catch (error) {
-      console.log("error", error);
-      const errorMessage = error.message || "Failed to fetch orders";
+      console.error("Error fetching bike orders:", error.message);
       return rejectWithValue({
-        status: error.status || 500,
-        message: errorMessage,
+        status: error.statusCode || 500,
+        message: error.message || "Failed to fetch orders",
         needsRedirect: false,
       });
     }
@@ -138,64 +62,25 @@ export const fetchBikeOrders = createAsyncThunk(
 // Async thunk for approving bike orders
 export const approveBikeOrder = createAsyncThunk(
   "bikeOrder/approveBikeOrder",
-  async (orderId, { dispatch, getState, rejectWithValue }) => {
+  async (orderId, { rejectWithValue }) => {
     try {
-      const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-      const state = getState();
+      const responseData = await apiPut(`/v1/order/approval/${orderId}`);
 
-      // Try to get token from Redux state, fallback to localStorage
-      let token = null;
-      if (state && state.auth && state.auth.token) {
-        token = state.auth.token;
-        console.log("Using token from Redux state");
-      } else {
-        token = localStorage.getItem("token");
-        console.log("Using token from localStorage");
-      }
-
-      console.log("apiUrl", apiUrl);
-
-      const response = await axios({
-        method: "PUT",
-        url: `${apiUrl}/v1/order/approval/${orderId}`,
-        headers: {
-          Authorization: token,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.data.isSuccess) {
-        // Handle unauthorized response
-        if (response.data.status === 401) {
-          dispatch(logout());
-          return rejectWithValue({
-            status: 401,
-            message: "Unauthorized - Please login again",
-            needsRedirect: true,
-          });
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const responseData = response.data;
-
-      if (responseData.isSuccess) {
-        return {
-          orderId,
-          responseData,
-        };
-      } else {
+      if (!responseData.isSuccess) {
         throw new Error(
           responseData.responseMessage || "Failed to approve order"
         );
       }
+
+      return {
+        orderId,
+        responseData,
+      };
     } catch (error) {
-      console.log("error", error);
-      const errorMessage = error.message || "Failed to approve order";
+      console.error("Error approving bike order:", error.message);
       return rejectWithValue({
-        status: error.status || 500,
-        message: errorMessage,
+        status: error.statusCode || 500,
+        message: error.message || "Failed to approve order",
         orderId,
         needsRedirect: false,
       });
@@ -203,54 +88,14 @@ export const approveBikeOrder = createAsyncThunk(
   }
 );
 
-// Async thunk for assigning bike to order (if you have an endpoint for this)
+// Async thunk for assigning bike to order
 export const assignBikeToOrder = createAsyncThunk(
   "bikeOrder/assignBikeToOrder",
-  async ({ orderId, bikeNumber }, { dispatch, getState, rejectWithValue }) => {
+  async ({ orderId, bikeNumber }, { rejectWithValue }) => {
     try {
-      const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-      const state = getState();
-
-      // Try to get token from Redux state, fallback to localStorage
-      let token = null;
-      if (state && state.auth && state.auth.token) {
-        token = state.auth.token;
-        console.log("Using token from Redux state");
-      } else {
-        token = localStorage.getItem("token");
-        console.log("Using token from localStorage");
-      }
-
-      console.log("apiUrl", apiUrl);
-
-      // This is a placeholder - replace with your actual endpoint
-      const response = await fetch(
-        `${apiUrl}/v1/order/assign-bike/${orderId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token && { Authorization: token }),
-          },
-          body: JSON.stringify({ bike_number: bikeNumber }),
-        }
-      );
-
-      if (!response.ok) {
-        // Handle unauthorized response
-        if (response.status === 401) {
-          dispatch(logout());
-          return rejectWithValue({
-            status: 401,
-            message: "Unauthorized - Please login again",
-            needsRedirect: true,
-          });
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const responseData = await response.json();
+      const responseData = await apiPost(`/v1/order/assign-bike/${orderId}`, {
+        bike_number: bikeNumber,
+      });
 
       if (responseData.isSuccess) {
         return {
@@ -264,11 +109,10 @@ export const assignBikeToOrder = createAsyncThunk(
         );
       }
     } catch (error) {
-      console.log("error", error);
-      const errorMessage = error.message || "Failed to assign bike";
+      console.error("Error assigning bike to order:", error.message);
       return rejectWithValue({
-        status: error.status || 500,
-        message: errorMessage,
+        status: error.statusCode || 500,
+        message: error.message || "Failed to assign bike",
         orderId,
         bikeNumber,
         needsRedirect: false,

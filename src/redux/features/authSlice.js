@@ -1,30 +1,12 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { apiPost } from "../../utils/apiClient";
 
 // Async thunk for login
 export const loginUser = createAsyncThunk(
   "auth/loginUser",
   async (credentials, { rejectWithValue }) => {
     try {
-      const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-      console.log("Using API URL:", apiUrl);
-
-      const response = await fetch(`${apiUrl}/v1/auth/login-mobile`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
+      const data = await apiPost("/v1/auth/login", credentials);
 
       // Extract token from backend response structure
       // Backend returns: { isSuccess, statusCode, responseMessage, data }
@@ -61,18 +43,11 @@ export const logoutUser = createAsyncThunk(
       // Optional: Call logout endpoint
       const token = localStorage.getItem("token");
       if (token) {
-        const apiUrl =
-          process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-        await fetch(`${apiUrl}/auth/logout`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+        await apiPost("/auth/logout");
       }
     } catch (error) {
       // Continue with local logout even if API call fails
+      console.log("Logout API call failed, continuing with local logout");
     } finally {
       // Clear local storage
       localStorage.removeItem("token");

@@ -4,6 +4,37 @@ import bikeIcon from "../../assets/pin.png";
 import terminalIcon from "../../assets/terminal-point.png";
 import { Icon, divIcon } from "leaflet";
 
+// Add CSS styles for better marker positioning
+const markerStyles = `
+  .custom-bike-marker,
+  .custom-terminal-marker,
+  .custom-default-marker {
+    position: relative !important;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform-origin: center bottom;
+    will-change: transform;
+  }
+  
+  .custom-bike-marker > div,
+  .custom-terminal-marker > div,
+  .custom-default-marker > div {
+    position: relative;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+`;
+
+// Inject styles into document head
+if (typeof document !== "undefined") {
+  const styleSheet = document.createElement("style");
+  styleSheet.textContent = markerStyles;
+  if (!document.head.querySelector("[data-marker-styles]")) {
+    styleSheet.setAttribute("data-marker-styles", "true");
+    document.head.appendChild(styleSheet);
+  }
+}
+
 const PinMarker = ({ latlng, type }) => {
   // Debug logging to track color changes
   useEffect(() => {
@@ -30,7 +61,7 @@ const PinMarker = ({ latlng, type }) => {
 
     return divIcon({
       html: `
-        <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-15px, -30px);">
+        <div style="display: flex; flex-direction: column; align-items: center;">
           <img src="${bikeIcon}" style="width: 30px; height: 30px;" />
           <div style="
             background: ${latlng.tracking_color || "rgba(37, 99, 235, 0.9)"};
@@ -49,8 +80,8 @@ const PinMarker = ({ latlng, type }) => {
         </div>
       `,
       className: "custom-bike-marker",
-      iconSize: [60, 50],
-      iconAnchor: [30, 40],
+      iconSize: [80, 60],
+      iconAnchor: [40, 55], // Point to the bottom center of the bike icon
     });
   }, [
     latlng?.tracking_color,
@@ -66,7 +97,7 @@ const PinMarker = ({ latlng, type }) => {
 
     return divIcon({
       html: `
-        <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-25px, -40px);">
+        <div style="display: flex; flex-direction: column; align-items: center;">
           <img src="${terminalIcon}" style="width: 50px; height: 80px;" />
           <div style="
             background: ${latlng.tracking_color || "rgba(124, 58, 237, 0.9)"};
@@ -85,8 +116,8 @@ const PinMarker = ({ latlng, type }) => {
         </div>
       `,
       className: "custom-terminal-marker",
-      iconSize: [80, 100],
-      iconAnchor: [40, 80],
+      iconSize: [80, 110],
+      iconAnchor: [40, 90], // Point to the bottom center of the terminal icon
     });
   }, [latlng?.tracking_color, latlng?.name, type]);
 
@@ -96,7 +127,7 @@ const PinMarker = ({ latlng, type }) => {
 
     return divIcon({
       html: `
-        <div style="display: flex; flex-direction: column; align-items: center; transform: translate(-15px, -30px);">
+        <div style="display: flex; flex-direction: column; align-items: center;">
           <img src="${terminalIcon}" style="width: 30px; height: 30px;" />
           <div style="
             background: ${latlng.tracking_color || "rgba(55, 65, 81, 0.9)"};
@@ -120,8 +151,8 @@ const PinMarker = ({ latlng, type }) => {
         </div>
       `,
       className: "custom-default-marker",
-      iconSize: [60, 50],
-      iconAnchor: [30, 40],
+      iconSize: [80, 60],
+      iconAnchor: [40, 55], // Point to the bottom center of the icon
     });
   }, [
     latlng?.tracking_color,
@@ -138,7 +169,7 @@ const PinMarker = ({ latlng, type }) => {
           key={`bike-${latlng.order_id || latlng.iteration || "default"}-${
             latlng.tracking_color || "blue"
           }-${latlng.iteration}`}
-          position={[`${latlng.latitude}`, `${latlng.longitude}`]}
+          position={[parseFloat(latlng.latitude), parseFloat(latlng.longitude)]}
           icon={customBikeIcon}
         >
           <Popup maxWidth={300} minWidth={200}>
@@ -210,7 +241,7 @@ const PinMarker = ({ latlng, type }) => {
           key={`terminal-${latlng.id || latlng.iteration || "default"}-${
             latlng.tracking_color || "purple"
           }`}
-          position={[`${latlng.latitude}`, `${latlng.longitude}`]}
+          position={[parseFloat(latlng.latitude), parseFloat(latlng.longitude)]}
           icon={customTerminalIcon}
         >
           <Popup maxWidth={300} minWidth={200}>
@@ -269,7 +300,7 @@ const PinMarker = ({ latlng, type }) => {
           key={`default-${latlng.id || latlng.iteration || "default"}-${
             latlng.tracking_color || "gray"
           }`}
-          position={[`${latlng.latitude}`, `${latlng.longitude}`]}
+          position={[parseFloat(latlng.latitude), parseFloat(latlng.longitude)]}
           icon={customDefaultIcon}
         >
           <Popup maxWidth={300} minWidth={200}>

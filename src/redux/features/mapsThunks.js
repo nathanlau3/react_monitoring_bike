@@ -1,51 +1,13 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { setError, setLoading } from "./mapsSlice";
 import { logout } from "./authSlice";
+import { apiGet } from "../../utils/apiClient";
 
 export const fetchTerminals = createAsyncThunk(
   "maps/fetchTerminals",
-  async (_, { dispatch, getState, rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-      const state = getState();
-
-      // Try to get token from Redux state, fallback to localStorage
-      let token = null;
-      if (state && state.auth && state.auth.token) {
-        token = state.auth.token;
-        console.log("Using token from Redux state");
-      } else {
-        token = localStorage.getItem("token");
-        console.log("Using token from localStorage");
-      }
-
-      console.log("apiUrl", apiUrl);
-
-      const response = await fetch(`${apiUrl}/v1/bike-terminal`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token && {
-            Authorization: token,
-          }),
-        },
-      });
-
-      if (!response.ok) {
-        // Handle unauthorized response
-        if (response.status === 401) {
-          dispatch(logout());
-          return rejectWithValue({
-            status: 401,
-            message: "Unauthorized - Please login again",
-            needsRedirect: true,
-          });
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const responseData = await response.json();
+      const responseData = await apiGet("/v1/bike-terminal");
       const data = responseData.data;
 
       // Transform data to match expected structure
@@ -57,11 +19,10 @@ export const fetchTerminals = createAsyncThunk(
 
       return formattedData;
     } catch (error) {
-      console.log("error", error);
-      const errorMessage = error.message || "Failed to fetch terminals";
+      console.error("Error fetching terminals:", error.message);
       return rejectWithValue({
-        status: error.status || 500,
-        message: errorMessage,
+        status: error.statusCode || 500,
+        message: error.message || "Failed to fetch terminals",
         needsRedirect: false,
       });
     }
@@ -70,46 +31,9 @@ export const fetchTerminals = createAsyncThunk(
 
 export const fetchClusters = createAsyncThunk(
   "maps/fetchClusters",
-  async (_, { dispatch, getState, rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const apiUrl =
-        process.env.REACT_APP_BACKEND_URL || "http://localhost:5005";
-      const state = getState();
-
-      // Try to get token from Redux state, fallback to localStorage
-      let token = null;
-      if (state && state.auth && state.auth.token) {
-        token = state.auth.token;
-        console.log("Using token from Redux state");
-      } else {
-        token = localStorage.getItem("token");
-        console.log("Using token from localStorage");
-      }
-
-      const response = await fetch(`${apiUrl}/v1/cluster`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token && {
-            Authorization: token,
-          }),
-        },
-      });
-
-      if (!response.ok) {
-        // Handle unauthorized response
-        if (response.status === 401) {
-          dispatch(logout());
-          return rejectWithValue({
-            status: 401,
-            message: "Unauthorized - Please login again",
-            needsRedirect: true,
-          });
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const responseData = await response.json();
+      const responseData = await apiGet("/v1/cluster");
       const data = responseData.data;
 
       // Transform data to match expected structure
@@ -124,10 +48,36 @@ export const fetchClusters = createAsyncThunk(
 
       return formattedData;
     } catch (error) {
-      const errorMessage = error.message || "Failed to fetch clusters";
+      console.error("Error fetching clusters:", error.message);
       return rejectWithValue({
-        status: error.status || 500,
-        message: errorMessage,
+        status: error.statusCode || 500,
+        message: error.message || "Failed to fetch clusters",
+        needsRedirect: false,
+      });
+    }
+  }
+);
+
+export const fetchTrackingData = createAsyncThunk(
+  "maps/fetchTrackingData",
+  async (_, { rejectWithValue }) => {
+    try {
+      const responseData = await apiGet("/v1/tracking");
+      const data = responseData.data;
+
+      // Transform tracking data to match expected structure
+      const trackingData = Array.isArray(data) ? data : [];
+      const formattedData = trackingData.map((track, index) => ({
+        ...track,
+        iteration: track.order_id || index + 1, // Use order_id as iteration or fallback to index
+      }));
+
+      return formattedData;
+    } catch (error) {
+      console.error("Error fetching tracking data:", error.message);
+      return rejectWithValue({
+        status: error.statusCode || 500,
+        message: error.message || "Failed to fetch tracking data",
         needsRedirect: false,
       });
     }

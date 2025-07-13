@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState } from "react";
-import { MapContainer, TileLayer, Circle, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Polygon, Marker, Popup } from "react-leaflet";
 import { ZoomControl } from "react-leaflet/ZoomControl";
 import PinMarker from "./pinMarker";
 import { divIcon } from "leaflet";
@@ -17,7 +17,11 @@ import {
   toggleClusterSelection,
 } from "../../redux/features/mapsSlice";
 import { logout } from "../../redux/features/authSlice";
-import { fetchTerminals, fetchClusters } from "../../redux/features/mapsThunks";
+import {
+  fetchTerminals,
+  fetchClusters,
+  fetchTrackingData,
+} from "../../redux/features/mapsThunks";
 
 // Constants
 const MAP_BUTTONS = [
@@ -44,10 +48,6 @@ const MAP_BUTTONS = [
 const DEFAULT_CENTER = [-7.77561471227957, 110.37319551913158];
 const DEFAULT_ZOOM = 15;
 
-// Cluster configuration
-const CLUSTER_CENTER = [-7.767892866288708, 110.37241916652384];
-const CLUSTER_RADIUS = 5000; // 5km in meters
-
 const Maps = ({ sidebarWidth = 256 }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -68,6 +68,45 @@ const Maps = ({ sidebarWidth = 256 }) => {
     isLoading,
     error,
   } = useSelector((state) => state.maps);
+
+  // Helper function to correct longitude coordinates (fix for negative longitude values)
+  const correctLongitude = (lng) => {
+    // If longitude is negative and appears to be incorrectly formatted for Yogyakarta area
+    if (lng < 0 && lng < -180) {
+      // Convert -249.x to 110.x (Yogyakarta longitude range)
+      return lng + 360; // This should bring -249.x to around 110.x
+    }
+    return lng;
+  };
+
+  // Helper function to convert polygon coordinates for Leaflet
+  const convertPolygonCoordinates = (polygonData) => {
+    if (
+      !polygonData ||
+      !polygonData.coordinates ||
+      !polygonData.coordinates[0]
+    ) {
+      return [];
+    }
+
+    // Convert from GeoJSON format [longitude, latitude] to Leaflet format [latitude, longitude]
+    // Also correct longitude values if they're incorrectly formatted
+    return polygonData.coordinates[0].map((coord) => [
+      coord[1], // latitude (stays the same)
+      correctLongitude(coord[0]), // longitude (corrected if needed)
+    ]);
+  };
+
+  // Helper function to format area for display
+  const formatArea = (areaMeters) => {
+    if (!areaMeters) return "Unknown";
+
+    if (areaMeters > 1000000) {
+      return `${(areaMeters / 1000000).toFixed(1)} km²`;
+    } else {
+      return `${(areaMeters / 1000).toFixed(1)} hectares`;
+    }
+  };
 
   // Socket callbacks
   const handleTrackingUpdate = useCallback(
@@ -115,6 +154,22 @@ const Maps = ({ sidebarWidth = 256 }) => {
       switch (buttonId) {
         case "bicycle":
           dispatch(toggleTrack());
+          // Fetch initial tracking data if not already loaded and track is being opened
+          if (!openTrack && !locations.length) {
+            try {
+              const result = await dispatch(fetchTrackingData());
+              if (fetchTrackingData.rejected.match(result)) {
+                if (
+                  result.payload?.status === 401 &&
+                  result.payload?.needsRedirect
+                ) {
+                  handleUnauthorized();
+                }
+              }
+            } catch (error) {
+              console.error("Error fetching initial tracking data:", error);
+            }
+          }
           break;
         case "terminal":
           dispatch(toggleTerminal());
@@ -142,7 +197,14 @@ const Maps = ({ sidebarWidth = 256 }) => {
           break;
       }
     },
-    [dispatch, isLoading, clusters.length, handleUnauthorized]
+    [
+      dispatch,
+      isLoading,
+      clusters.length,
+      handleUnauthorized,
+      openTrack,
+      locations.length,
+    ]
   );
 
   // Modified retry handler
@@ -406,10 +468,10 @@ const Maps = ({ sidebarWidth = 256 }) => {
             .filter((cluster) => selectedClusters.includes(cluster.id))
             .map((cluster, index) => {
               const colors = [
-                "#3b82f6", // Blue
-                "#10b981", // Green
-                "#f59e0b", // Yellow
                 "#ef4444", // Red
+                "#10b981", // Green
+                "#3b82f6", // Blue
+                "#f59e0b", // Yellow
                 "#8b5cf6", // Purple
                 "#06b6d4", // Cyan
                 "#f97316", // Orange
@@ -417,79 +479,102 @@ const Maps = ({ sidebarWidth = 256 }) => {
               ];
               const color = colors[index % colors.length];
 
+              // Convert polygon coordinates for Leaflet
+              const polygonCoordinates = convertPolygonCoordinates(
+                cluster.polygon_area
+              );
+
+              // Use center coordinates from API response with longitude correction
+              const centerLat = cluster.center_latitude || cluster.latitude;
+              const centerLng = correctLongitude(
+                cluster.center_longitude || cluster.longitude
+              );
+
               return (
                 <div key={`cluster-${cluster.id}`}>
-                  {/* Cluster Circle */}
-                  <Circle
-                    center={[cluster.latitude, cluster.longitude]}
-                    radius={cluster.radius}
-                    pathOptions={{
-                      color: color,
-                      fillColor: color,
-                      fillOpacity: 0.1,
-                      weight: 2,
-                      dashArray: "10, 5",
-                    }}
-                  />
+                  {/* Cluster Polygon */}
+                  {polygonCoordinates.length > 0 && (
+                    <Polygon
+                      positions={polygonCoordinates}
+                      pathOptions={{
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0.1,
+                        weight: 2,
+                        dashArray: "10, 5",
+                      }}
+                    />
+                  )}
 
                   {/* Cluster Center Point */}
-                  <Marker
-                    position={[cluster.latitude, cluster.longitude]}
-                    icon={divIcon({
-                      html: `
-                        <div style="
-                          width: 20px;
-                          height: 20px;
-                          background: ${color};
-                          border: 3px solid white;
-                          border-radius: 50%;
-                          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                          position: relative;
-                        ">
+                  {centerLat && centerLng && (
+                    <Marker
+                      position={[centerLat, centerLng]}
+                      icon={divIcon({
+                        html: `
                           <div style="
-                            position: absolute;
-                            top: -8px;
-                            left: -8px;
-                            width: 36px;
-                            height: 36px;
-                            border: 2px solid ${color};
+                            width: 20px;
+                            height: 20px;
+                            background: ${color};
+                            border: 3px solid white;
                             border-radius: 50%;
-                            opacity: 0.5;
-                            animation: pulse-${cluster.id} 2s infinite;
-                          "></div>
-                        </div>
-                        <style>
-                          @keyframes pulse-${cluster.id} {
-                            0% { transform: scale(1); opacity: 0.5; }
-                            50% { transform: scale(1.2); opacity: 0.3; }
-                            100% { transform: scale(1); opacity: 0.5; }
-                          }
-                        </style>
-                      `,
-                      className: `cluster-center-marker-${cluster.id}`,
-                      iconSize: [20, 20],
-                      iconAnchor: [10, 10],
-                    })}
-                  >
-                    <Popup>
-                      <div
-                        style={{
-                          padding: "8px",
-                          fontFamily: "Arial, sans-serif",
-                          textAlign: "center",
-                        }}
-                      >
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                            position: relative;
+                          ">
+                            <div style="
+                              position: absolute;
+                              top: -8px;
+                              left: -8px;
+                              width: 36px;
+                              height: 36px;
+                              border: 2px solid ${color};
+                              border-radius: 50%;
+                              opacity: 0.5;
+                              animation: pulse-${cluster.id} 2s infinite;
+                            "></div>
+                          </div>
+                          <style>
+                            @keyframes pulse-${cluster.id} {
+                              0% { transform: scale(1); opacity: 0.5; }
+                              50% { transform: scale(1.2); opacity: 0.3; }
+                              100% { transform: scale(1); opacity: 0.5; }
+                            }
+                          </style>
+                        `,
+                        className: `cluster-center-marker-${cluster.id}`,
+                        iconSize: [26, 26], // Slightly larger to account for border
+                        iconAnchor: [13, 13], // Center the marker precisely
+                      })}
+                    >
+                      <Popup>
                         <div
                           style={{
-                            fontSize: "16px",
-                            fontWeight: "bold",
-                            color: color,
-                            marginBottom: "8px",
+                            padding: "8px",
+                            fontFamily: "Arial, sans-serif",
+                            textAlign: "center",
                           }}
                         >
-                          🎯 {cluster.name}
-                        </div>
-                        {cluster.description && (
+                          <div
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: "bold",
+                              color: color,
+                              marginBottom: "8px",
+                            }}
+                          >
+                            🎯 {cluster.name}
+                          </div>
+                          {cluster.description && (
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#6b7280",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              {cluster.description}
+                            </div>
+                          )}
                           <div
                             style={{
                               fontSize: "12px",
@@ -497,25 +582,15 @@ const Maps = ({ sidebarWidth = 256 }) => {
                               marginBottom: "4px",
                             }}
                           >
-                            {cluster.description}
+                            📍 {centerLat?.toFixed(6)}, {centerLng?.toFixed(6)}
                           </div>
-                        )}
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "#6b7280",
-                            marginBottom: "4px",
-                          }}
-                        >
-                          📍 {cluster.latitude?.toFixed(6)},{" "}
-                          {cluster.longitude?.toFixed(6)}
+                          <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                            📏 Area: {formatArea(cluster.area_meters)}
+                          </div>
                         </div>
-                        <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                          📏 Radius: {(cluster.radius / 1000).toFixed(1)}km
-                        </div>
-                      </div>
-                    </Popup>
-                  </Marker>
+                      </Popup>
+                    </Marker>
+                  )}
                 </div>
               );
             })}
@@ -525,7 +600,7 @@ const Maps = ({ sidebarWidth = 256 }) => {
           locations.length > 0 &&
           locations.map((location, index) => (
             <PinMarker
-              key={`bike-${location.iteration || index}`}
+              key={`bike-${location.order_id || location.iteration || index}`}
               latlng={location}
               type="bike"
             />
@@ -651,12 +726,16 @@ const Maps = ({ sidebarWidth = 256 }) => {
                             )}
 
                             <div className="flex items-center gap-4 text-xs text-gray-500">
+                              <span>📏 {formatArea(cluster.area_meters)}</span>
                               <span>
-                                📏 {(cluster.radius / 1000).toFixed(1)}km
-                              </span>
-                              <span>
-                                📍 {cluster.latitude?.toFixed(4)},{" "}
-                                {cluster.longitude?.toFixed(4)}
+                                📍{" "}
+                                {(
+                                  cluster.center_latitude || cluster.latitude
+                                )?.toFixed(4)}
+                                ,{" "}
+                                {correctLongitude(
+                                  cluster.center_longitude || cluster.longitude
+                                )?.toFixed(4)}
                               </span>
                             </div>
                           </div>
