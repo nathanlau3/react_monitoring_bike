@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchTerminals, fetchClusters } from "./mapsThunks";
+import { fetchTerminals, fetchClusters, fetchTrackingData } from "./mapsThunks";
 
 const initialState = {
   locations: [],
@@ -67,18 +67,20 @@ const mapsSlice = createSlice({
     },
     updateLocation: (state, action) => {
       const newLocation = action.payload;
+      // Use order_id as the primary key for tracking updates
       const index = state.locations.findIndex(
-        (loc) => loc.iteration === newLocation.iteration
+        (loc) => loc.order_id === newLocation.order_id
       );
 
       if (index !== -1) {
-        // Create a new array to ensure React detects the change
+        // Update existing location by order_id
         state.locations = [
           ...state.locations.slice(0, index),
-          newLocation,
+          { ...state.locations[index], ...newLocation }, // Merge with existing data
           ...state.locations.slice(index + 1),
         ];
       } else {
+        // Add new location if order_id doesn't exist
         state.locations.push(newLocation);
       }
     },
@@ -120,6 +122,20 @@ const mapsSlice = createSlice({
       .addCase(fetchClusters.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message || "Failed to fetch clusters";
+      })
+      .addCase(fetchTrackingData.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchTrackingData.fulfilled, (state, action) => {
+        state.loading = false;
+        state.locations = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchTrackingData.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          action.payload?.message || "Failed to fetch tracking data";
       });
   },
 });

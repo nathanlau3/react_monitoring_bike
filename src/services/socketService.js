@@ -1,4 +1,6 @@
 import { socket, connectSocket, disconnectSocket } from "../config/socket";
+import { store } from "../redux/store";
+import { logout } from "../redux/features/authSlice";
 
 class SocketService {
   constructor() {
@@ -54,7 +56,9 @@ class SocketService {
 
       // Check if error is related to authentication
       if (this.isUnauthorizedError(error)) {
-        console.log("Socket unauthorized - triggering auth handler");
+        console.log("Socket unauthorized - logging out");
+        store.dispatch(logout());
+        window.location.href = "/login";
         if (onUnauthorized) onUnauthorized();
         return;
       }
@@ -63,7 +67,9 @@ class SocketService {
     };
 
     const handleUnauthorized = () => {
-      console.log("Socket unauthorized event received");
+      console.log("Socket unauthorized event received - logging out");
+      store.dispatch(logout());
+      window.location.href = "/login";
       if (onUnauthorized) onUnauthorized();
     };
 
