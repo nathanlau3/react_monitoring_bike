@@ -33,8 +33,10 @@ class SocketService {
       this.retryCount = 0;
 
       // Set up tracking listener
-      socket.on("test", this.boundTrackingUpdate);
-      console.log("[SOCKET SERVICE] 'test' event listener added");
+      socket.on("fetch-tracking-update", this.boundTrackingUpdate);
+      console.log(
+        "[SOCKET SERVICE] 'fetch-tracking-update' event listener added"
+      );
 
       if (onConnect) onConnect();
     };
@@ -44,7 +46,7 @@ class SocketService {
       this.isConnected = false;
 
       // Remove tracking listener
-      socket.off("test", this.boundTrackingUpdate);
+      socket.off("fetch-tracking-update", this.boundTrackingUpdate);
       console.log("[SOCKET SERVICE] 'test' event listener removed");
 
       if (onDisconnect) onDisconnect();
@@ -207,7 +209,7 @@ class SocketService {
     // Test emitting a custom event to see if socket works
     if (socket.connected) {
       console.log("[SOCKET SERVICE] 📤 Testing socket emission...");
-      socket.emit("test_client_event", { message: "Hello from client" });
+      socket.emit("fetch-tracking-update", { message: "Hello from client" });
     } else {
       console.log("[SOCKET SERVICE] ❌ Socket not connected for testing");
     }
@@ -239,8 +241,10 @@ class SocketService {
     this.listeners.clear();
 
     // Remove tracking listener
-    socket.off("test", this.boundTrackingUpdate);
-    console.log("[SOCKET SERVICE] Cleanup: 'test' event listener removed");
+    socket.off("fetch-tracking-update", this.boundTrackingUpdate);
+    console.log(
+      "[SOCKET SERVICE] Cleanup: 'fetch-tracking-update' event listener removed"
+    );
 
     // Clear callbacks
     this.onTrackingUpdate = null;
