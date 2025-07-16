@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Test - Clean Implementation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .connecting { background-color: #fff3cd; color: #856404; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .primary { background-color: #007bff; color: white; }
+        .success { background-color: #28a745; color: white; }
+        .danger { background-color: #dc3545; color: white; }
+        .secondary { background-color: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔌 Socket.IO Test - Clean Implementation</h1>
+    <div id="status" class="status connecting">Connecting...</div>
+    
+    <div>
+        <button onclick="testConnection()" class="primary">Test Connection</button>
+        <button onclick="testTracking()" class="success">Test Tracking</button>
+        <button onclick="reconnectSocket()" class="secondary">Reconnect</button>
+        <button onclick="debugSocket()" class="secondary">Debug</button>
+        <button onclick="clearMessages()" class="danger">Clear Messages</button>
+    </div>
+    
+    <div id="messages" class="messages"></div>
+    
+    <script>
+        const socket = io('http://localhost:5005');
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        
+        let isConnected = false;
+        let messageCount = 0;
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            const timestamp = new Date().toISOString();
+            const emoji = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '📨';
+            div.innerHTML = `<span style="color: #666;">[${timestamp}]</span> ${emoji} ${message}`;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            console.log(message);
+            messageCount++;
+        }
+        
+        function updateStatus(status, className) {
+            statusDiv.textContent = status;
+            statusDiv.className = 'status ' + className;
+        }
+        
+        function testConnection() {
+            if (isConnected) {
+                log('✅ Socket is already connected with ID: ' + socket.id, 'success');
+                log('🔍 Connection details: ' + JSON.stringify({
+                    id: socket.id,
+                    connected: socket.connected,
+                    transport: socket.io.engine.transport.name
+                }), 'info');
+            } else {
+                log('❌ Socket is not connected', 'error');
+                reconnectSocket();
+            }
+        }
+        
+        function testTracking() {
+            if (!isConnected) {
+                log('❌ Cannot test tracking: socket not connected', 'error');
+                return;
+            }
+            
+            const testData = {
+                order_id: 39,
+                latitude: -7.7479829935023465,
+                longitude: 110.38986627231766,
+                status_active: true,
+                test: true,
+                timestamp: new Date().toISOString()
+            };
+            
+            log('📤 Sending tracking-update: ' + JSON.stringify(testData), 'info');
+            socket.emit('tracking-update', testData);
+        }
+        
+        function reconnectSocket() {
+            log('🔄 Attempting to reconnect...', 'warning');
+            updateStatus('Reconnecting...', 'connecting');
+            socket.disconnect();
+            socket.connect();
+        }
+        
+        function debugSocket() {
+            log('🔍 Debug Information:', 'info');
+            log('  - Socket ID: ' + socket.id);
+            log('  - Connected: ' + socket.connected);
+            log('  - Transport: ' + socket.io.engine.transport.name);
+            log('  - URL: ' + socket.io.uri);
+            log('  - Message count: ' + messageCount);
+        }
+        
+        function clearMessages() {
+            messagesDiv.innerHTML = '';
+            messageCount = 0;
+            log('🗑️ Messages cleared', 'info');
+        }
+        
+        // Socket event handlers
+        socket.on('connect', () => {
+            isConnected = true;
+            updateStatus('Connected ✅', 'connected');
+            log('✅ Socket connected successfully with ID: ' + socket.id, 'success');
+            
+            // Auto-test connection
+            setTimeout(() => {
+                testTracking();
+            }, 1000);
+        });
+        
+        socket.on('fetch-tracking-update', (data) => {
+            log('✅ Received fetch-tracking-update event:', 'success');
+            log('📄 Data: ' + JSON.stringify(data, null, 2));
+            updateStatus('Working correctly! ✅', 'connected');
+        });
+        
+        socket.on('tracking-error', (error) => {
+            log('❌ Received tracking-error: ' + JSON.stringify(error), 'error');
+            updateStatus('Error ❌', 'error');
+        });
+        
+        socket.on('disconnect', (reason) => {
+            isConnected = false;
+            updateStatus('Disconnected ❌', 'disconnected');
+            log('🔌 Socket disconnected: ' + reason, 'error');
+        });
+        
+        socket.on('connect_error', (error) => {
+            isConnected = false;
+            updateStatus('Connection Error ❌', 'error');
+            log('❌ Connection error: ' + error, 'error');
+        });
+        
+        // Listen for all events for debugging
+        socket.onAny((event, ...args) => {
+            log(`📨 Event '${event}': ${JSON.stringify(args)}`, 'info');
+        });
+        
+        // Initial log
+        log('🚀 Socket test page loaded, attempting connection...', 'info');
+    </script>
+</body>
+</html>
