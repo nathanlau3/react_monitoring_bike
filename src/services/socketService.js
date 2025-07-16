@@ -29,14 +29,27 @@ class SocketService {
     // Connection handlers
     const handleConnect = () => {
       console.log("Socket connected successfully");
+      console.log("Socket ID:", socket.id);
+      console.log("Socket connected:", socket.connected);
+      console.log("Socket URL:", socket.io.uri);
       this.isConnected = true;
       this.retryCount = 0;
 
       // Set up tracking listener
       socket.on("fetch-tracking-update", this.boundTrackingUpdate);
-      console.log(
-        "[SOCKET SERVICE] 'fetch-tracking-update' event listener added"
-      );
+      console.log("[SOCKET SERVICE] 'fetch-tracking-update' event listener added");
+
+      // Test the connection by emitting a test event
+      setTimeout(() => {
+        const testData = {
+          order_id: 123,
+          latitude: -7.7479829935023465,
+          longitude: 110.38986627231766,
+          status_active: true
+        };
+        console.log("[SOCKET SERVICE] Testing connection with tracking-update:", testData);
+        socket.emit("tracking-update", testData);
+      }, 2000);
 
       if (onConnect) onConnect();
     };
@@ -47,7 +60,7 @@ class SocketService {
 
       // Remove tracking listener
       socket.off("fetch-tracking-update", this.boundTrackingUpdate);
-      console.log("[SOCKET SERVICE] 'test' event listener removed");
+      console.log("[SOCKET SERVICE] 'fetch-tracking-update' event listener removed");
 
       if (onDisconnect) onDisconnect();
     };
@@ -111,9 +124,9 @@ class SocketService {
 
     // Add a catch-all listener for debugging (remove in production)
     if (process.env.NODE_ENV === "development") {
-      // socket.onAny((event, ...args) => {
-      //   console.log(`[SOCKET SERVICE] 📨 Received event '${event}':`, args);
-      // });
+      socket.onAny((event, ...args) => {
+        console.log(`[SOCKET SERVICE] 📨 Received event '${event}':`, args);
+      });
     }
 
     // If already connected, trigger connect handler
@@ -122,8 +135,10 @@ class SocketService {
     }
   }
 
-  // Handle tracking updates from "test" event
+  // Handle tracking updates from "fetch-tracking-update" event
   handleTrackingUpdate(data) {
+    console.log("[SOCKET SERVICE] Received fetch-tracking-update:", data);
+    
     // Call the callback if available
     if (this.onTrackingUpdate) {
       this.onTrackingUpdate(data);
@@ -204,12 +219,12 @@ class SocketService {
     console.log("- Socket Connected:", socket.connected);
     console.log("- Service Connected:", this.isConnected);
     console.log("- Retry Count:", this.retryCount);
-    console.log("- Event Listeners:", socket.listeners("test"));
+    console.log("- Event Listeners:", socket.listeners("fetch-tracking-update"));
 
     // Test emitting a custom event to see if socket works
     if (socket.connected) {
       console.log("[SOCKET SERVICE] 📤 Testing socket emission...");
-      socket.emit("fetch-tracking-update", { message: "Hello from client" });
+      socket.emit("test_client_event", { message: "Hello from client" });
     } else {
       console.log("[SOCKET SERVICE] ❌ Socket not connected for testing");
     }
@@ -242,9 +257,7 @@ class SocketService {
 
     // Remove tracking listener
     socket.off("fetch-tracking-update", this.boundTrackingUpdate);
-    console.log(
-      "[SOCKET SERVICE] Cleanup: 'fetch-tracking-update' event listener removed"
-    );
+    console.log("[SOCKET SERVICE] Cleanup: 'fetch-tracking-update' event listener removed");
 
     // Clear callbacks
     this.onTrackingUpdate = null;
